@@ -1,0 +1,65 @@
+import scrapy
+from ..items import TesterItem
+
+class testSpider(scrapy.Spider):
+    name = 'tester'
+    page_number = 2
+    start_urls = ['https://www.amazon.in/s?bbn=976419031&rh=n%3A976419031%2Cp_36%3A1318504031&dc']
+    
+    def parse(self, response):
+        items = TesterItem()
+        
+        name = response.css('.a-color-base.a-text-normal::text').extract()
+        price = response.css('.a-price-whole::text').extract()
+        rating = response.css('.a-size-small a :nth-child(1)::text').extract()
+        
+        items['name'] = name
+        items['price'] = price
+        items['rating'] = rating
+        
+        yield items
+        
+        next_page = 'https://www.amazon.in/s?i=electronics&bbn=976419031&rh=n%3A976419031%2Cp_36%3A1318504031&dc&page=' + str(testSpider.page_number)
+        
+        if testSpider.page_number <= 5:
+            yield response.follow(next_page, callback = self.parse)
+            testSpider.page_number += 1
+            
+            
+            
+from itemadapter import ItemAdapter
+import sqlite3
+
+
+class TesterPipeline:
+    
+    def _init_(self):
+        self.create_connection()
+        self.create_table()
+    
+    def create_connection(self):
+        self.conn = sqlite3.connect('tester.db')
+        self.curr = self.conn.cursor()
+        
+    def create_table(self):
+        self.curr.execute("""Drop Table If Exists tester.db""")
+        self.curr.execute("""Create table tester_tb(
+            name text,
+            price text,
+            rating text)""")
+        
+       
+        
+    def process_item(self, item, spider):
+        self.store_db(item)
+        return item
+    
+    def store_db(self, item):
+        for i in range(24):
+            self.curr.execute(""" Insert into tester_tb values(?,?,?)""",(
+                item['name'][i],
+                item['price'][i],
+                item['rating'][i]))
+            self.conn.commit()
+            
+            print('PUSHED TO DB')
